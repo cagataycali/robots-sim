@@ -887,6 +887,7 @@ class NewtonSimulation(SimEngine):
             robot = self._robots[robot_name]
 
             # Convert action to array
+            action_array: np.ndarray[tuple[int, ...], np.dtype[np.floating[Any]]]
             if isinstance(action, dict):
                 action_array = np.zeros(robot.joint_count, dtype=np.float32)
                 for i, jname in enumerate(robot.joint_names):
