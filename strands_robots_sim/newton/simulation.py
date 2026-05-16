@@ -893,7 +893,7 @@ class NewtonSimulation(SimEngine):
                     if jname in action:
                         action_array[i] = float(action[jname])
             elif isinstance(action, np.ndarray):
-                action_array = action.astype(np.float32)
+                action_array = action.astype(np.float32).flatten()
             else:
                 action_array = np.array(action, dtype=np.float32)
 
