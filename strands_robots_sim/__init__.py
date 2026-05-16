@@ -1,26 +1,27 @@
-"""strands-robots-sim — heavy NVIDIA simulation backends for strands-robots.
+"""strands-robots-sim -- heavy NVIDIA simulation backends for strands-robots.
 
 As of 0.2.0 this package is a re-scoped plugin host. The legacy ``SimEnv``,
 ``SteppedSimEnv``, Libero-direct environment layer, GR00T policy client, and
-``gr00t_inference`` AgentTool have all been removed — that lightweight
+``gr00t_inference`` AgentTool have all been removed -- that lightweight
 MuJoCo + LIBERO + GR00T code path now lives in
 `strands-labs/robots <https://github.com/strands-labs/robots>`_, accessible
 via the ``Simulation`` AgentTool, the ``LiberoAdapter`` benchmark plugin, and
 ``strands_robots.tools.gr00t_inference``.
 
-This module is currently a no-op stub. Heavy GPU-only backends
-(``IsaacSimulation``, ``NewtonSimulation``) will register themselves through
-``strands-robots`` entry points in upcoming releases; see the umbrella issue
-https://github.com/strands-labs/robots-sim/issues/8.
+This package provides GPU-heavy backends:
+- ``NewtonSimulation`` -- GPU-native sim via NVIDIA Warp + Newton 1.x (4096+ envs)
+- ``IsaacSimulation`` -- (planned) photorealistic via Isaac Sim + IsaacLab 3.0
 
-See ``examples/MIGRATION.md`` for the old-API → new-API mapping.
+See ``examples/MIGRATION.md`` for the old-API -> new-API mapping.
 """
+
+from __future__ import annotations
 
 import warnings
 
-__version__ = "0.2.0"
+__version__ = "0.3.0-dev"
 
-__all__ = ["__version__"]
+__all__ = ["__version__", "NewtonSimulation", "NewtonConfig"]
 
 _LEGACY_REMOVED = {
     "SimEnv": (
@@ -61,8 +62,19 @@ _LEGACY_REMOVED = {
 }
 
 
-def __getattr__(name):  # PEP 562 module-level __getattr__
-    """Surface a clear, actionable error for legacy import names."""
+def __getattr__(name: str):  # noqa: N807
+    """PEP 562 module-level __getattr__."""
+    # Lazy-load Newton backend (avoids CUDA overhead at import time)
+    if name == "NewtonSimulation":
+        from strands_robots_sim.newton.simulation import NewtonSimulation
+
+        return NewtonSimulation
+    if name == "NewtonConfig":
+        from strands_robots_sim.newton.config import NewtonConfig
+
+        return NewtonConfig
+
+    # Legacy removed names -> actionable error
     if name in _LEGACY_REMOVED:
         message = _LEGACY_REMOVED[name]
         warnings.warn(message, DeprecationWarning, stacklevel=2)
