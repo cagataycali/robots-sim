@@ -45,6 +45,8 @@ except (ImportError, ModuleNotFoundError):
 
         def __exit__(self, *exc):
             self.cleanup()
+
+
 from strands_robots_sim.newton.config import NewtonConfig
 from strands_robots_sim.newton.procedural import ProceduralRobot, get_procedural_robot
 from strands_robots_sim.newton.solvers import SOLVER_MAP, create_solver_adapter
@@ -192,6 +194,7 @@ class NewtonSimulation(SimEngine):
             config.num_envs,
             config.device,
         )
+
     @classmethod
     def is_available(cls) -> bool:
         """Check if Newton/Warp GPU backend is available.
@@ -205,10 +208,9 @@ class NewtonSimulation(SimEngine):
             import warp as wp
 
             wp.init()
-            return wp.get_device_count() > 0
+            return bool(wp.get_device_count() > 0)
         except (ImportError, RuntimeError):
             return False
-
 
     @property
     def config(self) -> NewtonConfig:

@@ -12,8 +12,7 @@ Run with: pytest strands_robots_sim/newton/tests/test_entrypoint.py -v
 from __future__ import annotations
 
 import importlib.metadata
-import sys
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -39,8 +38,7 @@ class TestEntryPointRegistration:
         from strands_robots_sim.newton.simulation import NewtonSimulation, SimEngine
 
         assert issubclass(NewtonSimulation, SimEngine), (
-            "NewtonSimulation must inherit from SimEngine for entry-point "
-            "registration to satisfy the factory contract."
+            "NewtonSimulation must inherit from SimEngine for entry-point registration to satisfy the factory contract."
         )
 
     def test_newton_has_is_available_classmethod(self):

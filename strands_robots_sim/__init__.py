@@ -95,6 +95,7 @@ def register_backends() -> None:
         sim = create_simulation("newton", num_envs=4096)
     """
     from strands_robots.simulation.factory import register_backend
+
     from strands_robots_sim.newton.simulation import NewtonSimulation
 
     try:
