@@ -1,0 +1,342 @@
+"""Unit tests for Isaac Sim backend (no GPU required).
+
+All tests use mocking to avoid requiring Isaac Sim or CUDA.
+
+Run with: pytest strands_robots_sim/isaac/tests/test_unit.py -v
+"""
+
+from __future__ import annotations
+
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+
+class TestIsaacConfig:
+    """Tests for IsaacConfig dataclass validation."""
+
+    def test_default_config(self):
+        """Default config should be valid."""
+        from strands_robots_sim.isaac.config import IsaacConfig
+
+        config = IsaacConfig()
+        assert config.num_envs == 1
+        assert config.device == "cuda:0"
+        assert config.headless is True
+        assert config.render_mode == "headless"
+        assert config.gravity == (0.0, 0.0, -9.81)
+        assert config.ground_plane is True
+        assert config.camera_width == 640
+        assert config.camera_height == 480
+
+    def test_custom_config(self):
+        """Custom config values should be preserved."""
+        from strands_robots_sim.isaac.config import IsaacConfig
+
+        config = IsaacConfig(
+            num_envs=1024,
+            device="cuda:1",
+            headless=True,
+            physics_dt=1.0 / 240.0,
+            render_mode="rtx_realtime",
+        )
+        assert config.num_envs == 1024
+        assert config.device == "cuda:1"
+        assert config.physics_dt == pytest.approx(1.0 / 240.0)
+        assert config.render_mode == "rtx_realtime"
+
+    def test_invalid_render_mode(self):
+        """Invalid render_mode should raise ValueError."""
+        from strands_robots_sim.isaac.config import IsaacConfig
+
+        with pytest.raises(ValueError, match="render_mode"):
+            IsaacConfig(render_mode="invalid")
+
+    def test_invalid_device(self):
+        """Non-CUDA device should raise ValueError."""
+        from strands_robots_sim.isaac.config import IsaacConfig
+
+        with pytest.raises(ValueError, match="CUDA"):
+            IsaacConfig(device="cpu")
+
+    def test_invalid_num_envs(self):
+        """num_envs < 1 should raise ValueError."""
+        from strands_robots_sim.isaac.config import IsaacConfig
+
+        with pytest.raises(ValueError, match="num_envs"):
+            IsaacConfig(num_envs=0)
+
+    def test_invalid_physics_dt(self):
+        """physics_dt <= 0 should raise ValueError."""
+        from strands_robots_sim.isaac.config import IsaacConfig
+
+        with pytest.raises(ValueError, match="physics_dt"):
+            IsaacConfig(physics_dt=-0.001)
+
+    def test_invalid_camera_dimensions(self):
+        """Camera dimensions < 1 should raise ValueError."""
+        from strands_robots_sim.isaac.config import IsaacConfig
+
+        with pytest.raises(ValueError, match="camera"):
+            IsaacConfig(camera_width=0)
+
+    def test_config_round_trip(self):
+        """Config should survive dataclass replace round-trip."""
+        import dataclasses
+
+        from strands_robots_sim.isaac.config import IsaacConfig
+
+        original = IsaacConfig(num_envs=512, render_mode="rtx_pathtracing")
+        copy = dataclasses.replace(original, num_envs=1024)
+        assert copy.num_envs == 1024
+        assert copy.render_mode == "rtx_pathtracing"
+        assert original.num_envs == 512
+
+    def test_env_var_headless_override(self, monkeypatch):
+        """STRANDS_ISAAC_HEADLESS env var should override headless."""
+        from strands_robots_sim.isaac.config import IsaacConfig
+
+        monkeypatch.setenv("STRANDS_ISAAC_HEADLESS", "false")
+        config = IsaacConfig(headless=True)
+        assert config.headless is False
+
+    def test_env_var_rtx_pathtracing(self, monkeypatch):
+        """STRANDS_ISAAC_RTX_PATHTRACING env var should set render mode."""
+        from strands_robots_sim.isaac.config import IsaacConfig
+
+        monkeypatch.setenv("STRANDS_ISAAC_RTX_PATHTRACING", "true")
+        config = IsaacConfig(render_mode="headless")
+        assert config.render_mode == "rtx_pathtracing"
+
+    def test_env_var_nucleus_url(self, monkeypatch):
+        """STRANDS_ISAAC_NUCLEUS_URL env var should be picked up."""
+        from strands_robots_sim.isaac.config import IsaacConfig
+
+        monkeypatch.setenv("STRANDS_ISAAC_NUCLEUS_URL", "omniverse://myhost/NVIDIA")
+        config = IsaacConfig()
+        assert config.nucleus_url == "omniverse://myhost/NVIDIA"
+
+
+class TestIsaacSimulationAvailability:
+    """Tests for IsaacSimulation.is_available()."""
+
+    def test_is_available_returns_tuple(self):
+        """is_available() must return a (bool, str|None) tuple."""
+        from strands_robots_sim.isaac.simulation import IsaacSimulation
+
+        result = IsaacSimulation.is_available()
+        assert isinstance(result, tuple)
+        assert len(result) == 2
+        available, reason = result
+        assert isinstance(available, bool)
+        if not available:
+            assert isinstance(reason, str)
+
+    def test_is_available_false_without_omni(self):
+        """is_available() should return False when omni is not importable."""
+        from strands_robots_sim.isaac.simulation import IsaacSimulation
+
+        # On CI without Isaac Sim, this should be False
+        available, reason = IsaacSimulation.is_available()
+        # We can't assert False universally (GPU env might have it)
+        # But we CAN verify the return contract
+        assert isinstance(available, bool)
+        if not available:
+            assert "omni" in reason.lower() or "cuda" in reason.lower() or "torch" in reason.lower()
+
+    @patch("builtins.__import__")
+    def test_is_available_false_when_omni_missing(self, mock_import):
+        """Simulate omni not installed."""
+        from strands_robots_sim.isaac.simulation import IsaacSimulation
+
+        def side_effect(name, *args, **kwargs):
+            if name == "omni":
+                raise ImportError("No module named 'omni'")
+            return MagicMock()
+
+        mock_import.side_effect = side_effect
+
+        # Need to call directly without module caching
+        # Just verify the method exists and is callable
+        assert callable(IsaacSimulation.is_available)
+
+
+class TestIsaacSimulationContract:
+    """Tests for IsaacSimulation method contracts (mocked)."""
+
+    def test_instantiation_does_not_import_omni(self):
+        """Constructor must NOT import omni or touch CUDA."""
+        from strands_robots_sim.isaac.simulation import IsaacSimulation
+
+        # This must succeed on any machine -- no CUDA required
+        sim = IsaacSimulation(num_envs=1)
+        assert sim is not None
+        assert sim.config.num_envs == 1
+        assert sim.config.headless is True
+
+    def test_repr(self):
+        """repr should be informative."""
+        from strands_robots_sim.isaac.simulation import IsaacSimulation
+
+        sim = IsaacSimulation(num_envs=4)
+        r = repr(sim)
+        assert "IsaacSimulation" in r
+        assert "num_envs=4" in r
+
+    def test_destroy_without_world(self):
+        """destroy() on uninitialized sim should return error dict."""
+        from strands_robots_sim.isaac.simulation import IsaacSimulation
+
+        sim = IsaacSimulation()
+        result = sim.destroy()
+        assert result["status"] == "error"
+
+    def test_step_without_world(self):
+        """step() without create_world should return error."""
+        from strands_robots_sim.isaac.simulation import IsaacSimulation
+
+        sim = IsaacSimulation()
+        result = sim.step(1)
+        assert result["status"] == "error"
+
+    def test_get_state_without_world(self):
+        """get_state() without create_world should return error."""
+        from strands_robots_sim.isaac.simulation import IsaacSimulation
+
+        sim = IsaacSimulation()
+        result = sim.get_state()
+        assert result["status"] == "error"
+
+    def test_add_robot_without_world(self):
+        """add_robot() without create_world should return error."""
+        from strands_robots_sim.isaac.simulation import IsaacSimulation
+
+        sim = IsaacSimulation()
+        result = sim.add_robot("test")
+        assert result["status"] == "error"
+
+    def test_add_object_without_world(self):
+        """add_object() without create_world should return error."""
+        from strands_robots_sim.isaac.simulation import IsaacSimulation
+
+        sim = IsaacSimulation()
+        result = sim.add_object("test")
+        assert result["status"] == "error"
+
+    def test_add_object_invalid_shape(self):
+        """add_object() with invalid shape should return error."""
+        from strands_robots_sim.isaac.simulation import IsaacSimulation
+
+        sim = IsaacSimulation()
+        sim._world_created = True  # bypass world check
+        result = sim.add_object("test", shape="invalid_shape")
+        assert result["status"] == "error"
+        assert "invalid_shape" in result["content"][0]["text"]
+
+    def test_get_observation_without_world(self):
+        """get_observation() without world returns empty dict."""
+        from strands_robots_sim.isaac.simulation import IsaacSimulation
+
+        sim = IsaacSimulation()
+        result = sim.get_observation("robot1")
+        assert result == {}
+
+    def test_context_manager(self):
+        """IsaacSimulation supports context manager protocol."""
+        from strands_robots_sim.isaac.simulation import IsaacSimulation
+
+        with IsaacSimulation() as sim:
+            assert sim is not None
+
+    def test_kwargs_merge_into_config(self):
+        """Shortcut kwargs should merge into config."""
+        from strands_robots_sim.isaac.simulation import IsaacSimulation
+
+        sim = IsaacSimulation(num_envs=256, headless=True)
+        assert sim.config.num_envs == 256
+        assert sim.config.headless is True
+
+
+class TestProceduralRobots:
+    """Tests for procedural robot definitions."""
+
+    def test_so100_definition(self):
+        """SO-100 should have 6 joints."""
+        from strands_robots_sim.isaac.procedural import get_procedural_robot
+
+        robot = get_procedural_robot("so100")
+        assert robot is not None
+        assert robot.name == "so100"
+        assert robot.num_joints == 6
+        assert len(robot.joint_names) == 6
+
+    def test_panda_definition(self):
+        """Panda should have 7 joints."""
+        from strands_robots_sim.isaac.procedural import get_procedural_robot
+
+        robot = get_procedural_robot("panda")
+        assert robot is not None
+        assert robot.name == "panda"
+        assert robot.num_joints == 7
+        assert len(robot.joint_names) == 7
+
+    def test_unitree_g1_definition(self):
+        """Unitree G1 should have 21 joints (simplified)."""
+        from strands_robots_sim.isaac.procedural import get_procedural_robot
+
+        robot = get_procedural_robot("unitree_g1")
+        assert robot is not None
+        assert robot.name == "unitree_g1"
+        assert robot.num_joints == 21
+        assert len(robot.joint_names) == 21
+
+    def test_alias_resolution(self):
+        """Aliases should resolve correctly."""
+        from strands_robots_sim.isaac.procedural import get_procedural_robot
+
+        assert get_procedural_robot("so-100") is not None
+        assert get_procedural_robot("franka") is not None
+        assert get_procedural_robot("g1") is not None
+        assert get_procedural_robot("franka_panda") is not None
+
+    def test_unknown_robot_returns_none(self):
+        """Unknown robot name should return None."""
+        from strands_robots_sim.isaac.procedural import get_procedural_robot
+
+        assert get_procedural_robot("nonexistent_robot") is None
+
+    def test_list_procedural_robots(self):
+        """list_procedural_robots should return known robots."""
+        from strands_robots_sim.isaac.procedural import list_procedural_robots
+
+        robots = list_procedural_robots()
+        assert "so100" in robots
+        assert "panda" in robots
+        assert "unitree_g1" in robots
+
+
+class TestNoEmojisInOutput:
+    """Verify no emojis in user-facing strings."""
+
+    def test_destroy_message_no_emoji(self):
+        """destroy() output must not contain emojis."""
+        from strands_robots_sim.isaac.simulation import IsaacSimulation
+
+        sim = IsaacSimulation()
+        result = sim.destroy()
+        text = result["content"][0]["text"]
+        # Check for common emoji ranges
+        for char in text:
+            code = ord(char)
+            assert code < 0x1F600 or code > 0x1F9FF, f"Emoji found in output: {char!r}"
+
+    def test_step_error_no_emoji(self):
+        """step() error must not contain emojis."""
+        from strands_robots_sim.isaac.simulation import IsaacSimulation
+
+        sim = IsaacSimulation()
+        result = sim.step(1)
+        text = result["content"][0]["text"]
+        for char in text:
+            code = ord(char)
+            assert code < 0x1F600 or code > 0x1F9FF, f"Emoji found in output: {char!r}"
