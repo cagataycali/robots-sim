@@ -27,6 +27,24 @@ from typing import Any
 
 import numpy as np
 
+try:
+    from strands_robots.simulation.base import SimEngine
+except (ImportError, ModuleNotFoundError):
+    # Fallback: strands-robots < 0.4.0 doesn't have simulation.base yet.
+    # Provide a minimal ABC stub so the class can still be defined.
+    from abc import ABC
+
+    class SimEngine(ABC):  # type: ignore[no-redef]
+        """Minimal fallback ABC when strands-robots.simulation.base is unavailable."""
+
+        def cleanup(self) -> None:
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            self.cleanup()
 from strands_robots_sim.newton.config import NewtonConfig
 from strands_robots_sim.newton.procedural import ProceduralRobot, get_procedural_robot
 from strands_robots_sim.newton.solvers import SOLVER_MAP, create_solver_adapter
@@ -94,7 +112,7 @@ class _ObjectState:
         self.is_static = is_static
 
 
-class NewtonSimulation:
+class NewtonSimulation(SimEngine):
     """GPU-native simulation backend built on NVIDIA Warp + Newton 1.x.
 
     Implements the ``SimEngine`` ABC. Every method delegates to Warp kernels
@@ -174,6 +192,23 @@ class NewtonSimulation:
             config.num_envs,
             config.device,
         )
+    @classmethod
+    def is_available(cls) -> bool:
+        """Check if Newton/Warp GPU backend is available.
+
+        Returns True if both ``newton`` and ``warp`` packages are importable
+        and at least one CUDA device is visible. Used by the factory to
+        gracefully skip unavailable backends.
+        """
+        try:
+            import newton  # noqa: F401
+            import warp as wp
+
+            wp.init()
+            return wp.get_device_count() > 0
+        except (ImportError, RuntimeError):
+            return False
+
 
     @property
     def config(self) -> NewtonConfig:

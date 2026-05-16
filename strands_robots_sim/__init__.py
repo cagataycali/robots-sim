@@ -8,9 +8,25 @@ MuJoCo + LIBERO + GR00T code path now lives in
 via the ``Simulation`` AgentTool, the ``LiberoAdapter`` benchmark plugin, and
 ``strands_robots.tools.gr00t_inference``.
 
-This package provides GPU-heavy backends:
+This package provides GPU-heavy backends registered via entry points:
 - ``NewtonSimulation`` -- GPU-native sim via NVIDIA Warp + Newton 1.x (4096+ envs)
 - ``IsaacSimulation`` -- (planned) photorealistic via Isaac Sim + IsaacLab 3.0
+
+Entry-point group: ``strands_robots.backends``
+  - newton → strands_robots_sim.newton.simulation:NewtonSimulation
+  - warp   → strands_robots_sim.newton.simulation:NewtonSimulation (alias)
+
+Usage via factory (once U2 lands)::
+
+    from strands_robots.simulation import create_simulation
+    sim = create_simulation("newton", num_envs=4096)
+
+Manual registration (works now)::
+
+    from strands_robots.simulation.factory import register_backend
+    from strands_robots_sim.newton.simulation import NewtonSimulation
+    register_backend("newton", lambda: NewtonSimulation, aliases=["warp"])
+    sim = create_simulation("newton")
 
 See ``examples/MIGRATION.md`` for the old-API -> new-API mapping.
 """
@@ -19,9 +35,9 @@ from __future__ import annotations
 
 import warnings
 
-__version__ = "0.3.0-dev"
+__version__ = "0.4.0-dev"
 
-__all__ = ["__version__", "NewtonSimulation", "NewtonConfig"]
+__all__ = ["__version__", "NewtonSimulation", "NewtonConfig", "register_backends"]
 
 _LEGACY_REMOVED = {
     "SimEnv": (
@@ -60,6 +76,31 @@ _LEGACY_REMOVED = {
         "See examples/MIGRATION.md."
     ),
 }
+
+
+def register_backends() -> None:
+    """Manually register Newton backend with the strands-robots factory.
+
+    Call this to enable ``create_simulation("newton")`` before the upstream
+    factory gains automatic entry-point discovery (U2, strands-labs/robots#131).
+
+    This is idempotent — safe to call multiple times.
+
+    Example::
+
+        import strands_robots_sim
+        strands_robots_sim.register_backends()
+
+        from strands_robots.simulation import create_simulation
+        sim = create_simulation("newton", num_envs=4096)
+    """
+    from strands_robots.simulation.factory import register_backend
+    from strands_robots_sim.newton.simulation import NewtonSimulation
+
+    try:
+        register_backend("newton", lambda: NewtonSimulation, aliases=["warp"])
+    except ValueError:
+        pass  # Already registered — idempotent
 
 
 def __getattr__(name: str):  # noqa: N807
