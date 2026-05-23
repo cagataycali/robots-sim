@@ -1645,12 +1645,13 @@ class NewtonSimulation(SimEngine):
                     m=body.mass,
                     name=body.name,
                 )
-            except (TypeError, AttributeError):
+            except (TypeError, AttributeError) as e:
                 # Fallback for different Newton API versions
+                logger.warning("add_body with full kwargs failed: %s. Trying fallback.", e)
                 try:
                     builder.add_body(origin=pos, mass=body.mass)
-                except Exception:
-                    pass
+                except Exception as e2:
+                    logger.warning("add_body fallback also failed: %s", e2)
 
             # Add shape (collision geometry)
             try:
@@ -1670,8 +1671,8 @@ class NewtonSimulation(SimEngine):
                 elif body.shape == "cylinder":
                     r, h = body.shape_size[0], body.shape_size[1]
                     builder.add_shape_capsule(body=i, radius=r, half_height=h)
-            except (TypeError, AttributeError):
-                pass
+            except (TypeError, AttributeError) as e:
+                logger.warning("add_shape_%s failed: %s", body.shape, e)
 
         # Add joints
         for jdef in robot.joints:
@@ -1688,16 +1689,17 @@ class NewtonSimulation(SimEngine):
                     damping=jdef.damping,
                     armature=jdef.armature,
                 )
-            except (TypeError, AttributeError):
+            except (TypeError, AttributeError) as e:
                 # Fallback
+                logger.warning("add_joint_revolute with full kwargs failed: %s. Trying fallback.", e)
                 try:
                     builder.add_joint(
                         parent=jdef.parent_body,
                         child=jdef.child_body,
                         axis=list(jdef.axis),
                     )
-                except Exception:
-                    pass
+                except Exception as e2:
+                    logger.warning("add_joint fallback also failed: %s", e2)
 
     def _load_urdf_robot(self, urdf_path: str, position: list[float], orientation: list[float]) -> list[str]:
         """Load a robot from URDF file. Returns joint names."""
@@ -1764,10 +1766,12 @@ class NewtonSimulation(SimEngine):
                 m=0.0 if is_static else mass,
                 name=name,
             )
-        except (TypeError, AttributeError):
+        except (TypeError, AttributeError) as e:
+            logger.warning("add_body with full kwargs failed: %s. Trying fallback.", e)
             try:
                 body_idx = self._builder.add_body(origin=position, mass=0.0 if is_static else mass)
-            except Exception:
+            except Exception as e2:
+                logger.warning("add_body fallback also failed: %s. Returning early.", e2)
                 return
 
         # Add collision shape
@@ -1784,8 +1788,8 @@ class NewtonSimulation(SimEngine):
                 r = size[0] if len(size) > 0 else 0.02
                 h = size[1] / 2 if len(size) > 1 else 0.05
                 self._builder.add_shape_capsule(body=body_idx, radius=r, half_height=h)
-        except (TypeError, AttributeError):
-            pass
+        except (TypeError, AttributeError) as e:
+            logger.warning("add_shape_%s failed: %s", shape, e)
 
     def _create_opengl_renderer(self, width: int, height: int) -> Any:
         """Create an OpenGL renderer (if available)."""
