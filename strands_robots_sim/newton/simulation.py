@@ -1117,6 +1117,10 @@ class NewtonSimulation(SimEngine):
         sharing the model but maintaining independent state arrays.
         This is the key to Newton's fleet-scale throughput.
 
+        LIMITATION: Currently only procedural robots are replicated.
+        URDF-loaded robots (procedural=None) and objects added via add_object()
+        are NOT replicated and will raise NotImplementedError.
+
         Parameters
         ----------
         num_envs : int, optional
@@ -1126,6 +1130,11 @@ class NewtonSimulation(SimEngine):
         -------
         dict
             Status dict with replication info and throughput estimate.
+
+        Raises
+        ------
+        NotImplementedError
+            If any URDF robot or add_object() object exists in the scene.
         """
         with self._lock:
             if not self._world_created:
@@ -1133,6 +1142,21 @@ class NewtonSimulation(SimEngine):
 
             if not self._robots and not self._objects:
                 return {"status": "error", "content": [{"text": "Add at least one robot or object first."}]}
+
+            # Check for URDF robots (not supported yet)
+            urdf_robots = [name for name, rstate in self._robots.items() if rstate.procedural is None]
+            if urdf_robots:
+                raise NotImplementedError(
+                    f"replicate() does not support URDF-loaded robots yet. "
+                    f"Found: {urdf_robots}. Use procedural robots (so100, panda, unitree_g1) instead."
+                )
+
+            # Check for add_object() objects (not supported yet)
+            if self._objects:
+                raise NotImplementedError(
+                    f"replicate() does not support add_object() objects yet. "
+                    f"Found: {list(self._objects.keys())}. Remove objects before calling replicate()."
+                )
 
             n = num_envs or self._config.num_envs
 
