@@ -127,12 +127,29 @@ class TestEntryPointRegistration:
         """NewtonSimulation must implement all SimEngine abstract methods."""
         from strands_robots_sim.newton.simulation import NewtonSimulation, SimEngine
 
+        # Check if we're using the real SimEngine or the fallback stub
+        # The fallback has no abstract methods, which makes this test vacuous
+        is_fallback = SimEngine.__module__ == "strands_robots_sim.newton.simulation"
+
+        if is_fallback:
+            pytest.skip(
+                "Using SimEngine fallback stub (strands-robots < 0.4.0). "
+                "Cannot test abstract method implementation. "
+                "Install strands-robots >= 0.4.0 to enable this test."
+            )
+
         # Get all abstract methods from SimEngine
         abstract_methods = set()
         for name in dir(SimEngine):
             method = getattr(SimEngine, name, None)
             if callable(method) and getattr(method, "__isabstractmethod__", False):
                 abstract_methods.add(name)
+
+        # Real SimEngine MUST have abstract methods
+        assert len(abstract_methods) > 0, (
+            "SimEngine has no abstract methods. This should not happen with strands-robots >= 0.4.0. "
+            "If using the fallback stub, this test should have been skipped."
+        )
 
         # Verify NewtonSimulation implements each one
         for method_name in abstract_methods:
