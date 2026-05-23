@@ -1217,17 +1217,18 @@ class NewtonSimulation(SimEngine):
         lr: float = 0.02,
         iterations: int = 200,
     ) -> dict[str, Any]:
-        """Run differentiable simulation optimization.
+        """Run gradient-free simulation optimization via finite differences.
 
-        Uses Warp's autodiff tape to compute gradients through the
-        simulation and optimize specified parameters.
+        Uses finite-difference gradients to optimize simulation parameters.
+        Note: This does NOT use Warp's autodiff tape. For true differentiable
+        simulation, Warp tape integration is required (future work).
 
         Parameters
         ----------
         num_steps : int
             Simulation steps per forward pass.
         loss_fn : callable
-            Loss function: f(state) → scalar. Must be Warp-compatible.
+            Loss function: f(state) → scalar.
         optimize_params : list[str]
             Parameter names to optimize (e.g. ["initial_velocity", "joint_stiffness"]).
         lr : float
@@ -1243,19 +1244,6 @@ class NewtonSimulation(SimEngine):
         with self._lock:
             if not self._world_created:
                 return {"status": "error", "content": [{"text": "No world created."}]}
-
-            if not self._config.enable_differentiable:
-                return {
-                    "status": "error",
-                    "content": [
-                        {
-                            "text": (
-                                "Differentiable simulation not enabled. "
-                                "Set config.enable_differentiable=True and recreate."
-                            )
-                        }
-                    ],
-                }
 
             self._ensure_built()
 
@@ -1277,7 +1265,7 @@ class NewtonSimulation(SimEngine):
                 else:
                     initial_params[pname] = np.zeros(1)
 
-            # Define forward/backward using Warp tape
+            # Define forward/backward using finite differences
 
             def forward_fn(params):
                 # Set params, run forward, compute loss
@@ -1292,7 +1280,7 @@ class NewtonSimulation(SimEngine):
                 return float(loss_fn(state))
 
             def backward_fn(params):
-                # Use finite differences as fallback
+                # Finite difference gradients (no Warp tape)
                 from strands_robots_sim.newton.diffsim import compute_finite_difference_gradients
 
                 return compute_finite_difference_gradients(forward_fn, params)
