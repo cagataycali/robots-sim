@@ -1,15 +1,27 @@
-"""Differentiable simulation helpers for Newton/Warp.
+"""Gradient-based simulation optimization helpers for Newton/Warp.
 
-Provides high-level wrappers around Warp's autodiff tape for:
-1. Trajectory optimization (``run_diffsim``)
+Provides a CPU-side optimization loop (Adam/SGD with gradient clipping)
+that delegates the forward and backward passes to caller-supplied
+callables:
+
+1. Trajectory optimization (``run_diffsim_loop``)
 2. System identification
 3. Differentiable rendering (future)
+
+The loop itself is gradient-method-agnostic. ``backward_fn`` may compute
+gradients via Warp's autodiff tape (true autodiff) or via finite
+differences; the choice belongs to the caller.
+``NewtonSimulation.run_diffsim`` (see ``simulation.py``) currently wires
+this loop to a finite-difference backend because Warp tape integration
+is deferred (R13 follow-up).
 
 These helpers are used by :meth:`NewtonSimulation.run_diffsim` and
 exposed for advanced users who need fine-grained control over the
 optimization loop.
 
-Requires ``config.enable_differentiable = True`` to work.
+Setting ``NewtonConfig.enable_differentiable = True`` opts the world into
+the diff-sim configuration path; today that path uses finite-difference
+gradients.
 """
 
 from __future__ import annotations

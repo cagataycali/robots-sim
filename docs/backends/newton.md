@@ -2,7 +2,7 @@
 
 > `strands_robots_sim.newton.NewtonSimulation` — a `SimEngine` backend built on
 > [NVIDIA Warp](https://github.com/NVIDIA/warp) + [Newton 1.x](https://github.com/newton-physics/newton)
-> for massive-parallel RL training (4096+ envs), differentiable simulation,
+> for massive-parallel RL training (4096+ envs), gradient-based simulation optimization,
 > and soft-body/cloth/MPM workloads.
 
 **Status:** Implementation complete on `feat/newton-backend` (R11 / [#18](https://github.com/strands-labs/robots-sim/issues/18)).
@@ -90,7 +90,7 @@ config = NewtonConfig(
     substeps=4,               # inner iterations per step()
     render_backend="null",    # "null", "opengl", "rerun", "viser"
     enable_cuda_graph=True,   # CUDA graph capture for steady-state perf
-    enable_differentiable=False,  # Warp autodiff tape
+    enable_differentiable=False,  # Diff-sim path; FD-grad today, autodiff tape deferred (PR #30 R13)
     broad_phase="sap",        # collision broadphase
     up_axis="Y",              # "Y" (Newton default) or "Z" (robotics)
     ground_plane=True,        # automatic ground plane
@@ -209,9 +209,11 @@ state = sim.get_state()
 
 ---
 
-## Differentiable Simulation
+## Gradient-Based Simulation Optimization
 
-Enable Warp's autodiff tape for trajectory optimization:
+Enable the diff-sim path for trajectory optimization. Today this uses
+finite-difference gradients via ``NewtonSimulation.run_diffsim``; Warp
+autodiff tape integration is deferred (see PR #30 R13 follow-up).
 
 ```python
 from strands_robots_sim.newton import NewtonConfig

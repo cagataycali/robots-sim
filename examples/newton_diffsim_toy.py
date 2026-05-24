@@ -1,8 +1,15 @@
-"""Newton backend — differentiable simulation toy example.
+"""Newton backend — gradient-based simulation optimization toy example.
 
-Demonstrates trajectory optimization using Warp's autodiff tape.
+Demonstrates trajectory optimization using the diff-sim helper loop.
 Optimizes initial joint velocities to make a robot's end-effector
 reach a target position after N timesteps.
+
+Note: ``NewtonSimulation.run_diffsim`` currently uses finite-difference
+gradients (not Warp's autodiff tape). The optimizer loop in
+``diffsim.py`` is gradient-method-agnostic; tape integration is deferred
+as an R13 follow-up. Until then, this example demonstrates the optimizer
+loop / sim-config plumbing rather than autodiff physics; ``forward_fn``
+in this file is a closed-form numpy expression rather than a sim rollout.
 
 Requirements:
     pip install 'strands-robots-sim[newton]'
@@ -28,7 +35,7 @@ def main():
     # --- Setup differentiable simulation ---
     config = NewtonConfig(
         solver="mujoco",
-        enable_differentiable=True,  # Enable autodiff tape
+        enable_differentiable=True,  # Opts into diff-sim path (FD-grad today; tape deferred)
         enable_cuda_graph=False,  # Disable for diff-sim (graph incompatible)
         render_backend="null",
     )
