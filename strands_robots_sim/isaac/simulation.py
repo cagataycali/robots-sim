@@ -206,11 +206,23 @@ class IsaacSimulation(SimEngine):
         tuple[bool, str | None]
             (available, reason_if_not). If available is True, reason is None.
         """
+        # Probe what create_world() actually needs: omni.isaac.kit.SimulationApp.
+        # The bare ``omni`` namespace is a PEP 420 namespace package shared by
+        # omni.ui, omni.usd, partial Omniverse SDK installs, and Isaac-Lab
+        # pre-bootstrap states -- its mere presence is not a reliable signal
+        # that Isaac Sim is usable. ``importlib.util.find_spec`` checks the
+        # specific submodule without importing it (no side effects); it
+        # raises ModuleNotFoundError when a parent package along the dotted
+        # path is missing, which we treat the same as "not available".
+        import importlib.util
+
         try:
-            import omni  # type: ignore[import-not-found]  # noqa: F401
-        except ImportError:
+            kit_spec = importlib.util.find_spec("omni.isaac.kit")
+        except ModuleNotFoundError:
+            kit_spec = None
+        if kit_spec is None:
             return False, (
-                "omni / Isaac Sim not importable. "
+                "omni.isaac.kit.SimulationApp not importable. "
                 "Isaac Sim must be installed separately (not via pip). Options:\n"
                 "  - NVIDIA Omniverse Launcher (Isaac Sim 2024.x+)\n"
                 "  - Isaac Lab: git clone IsaacLab && ./isaaclab.sh -i\n"

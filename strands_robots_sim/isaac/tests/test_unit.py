@@ -160,6 +160,42 @@ class TestIsaacSimulationAvailability:
         # Just verify the method exists and is callable
         assert callable(IsaacSimulation.is_available)
 
+    def test_is_available_probes_omni_isaac_kit_specifically(self, monkeypatch):
+        """is_available() must probe ``omni.isaac.kit``, not the bare ``omni``
+        namespace package.
+
+        Regression pin for review-feedback PR #31: a partial Omniverse install
+        (omni.ui / omni.usd) leaves the bare ``omni`` namespace importable but
+        ``omni.isaac.kit.SimulationApp`` -- which create_world() actually needs --
+        unavailable. The pre-fix probe (`import omni`) returned ``(True, None)``
+        in that environment, then create_world() raised ImportError seconds
+        later. Tightened probe uses ``importlib.util.find_spec`` against the
+        specific submodule.
+        """
+        import importlib.util
+
+        from strands_robots_sim.isaac.simulation import IsaacSimulation
+
+        captured: list[str] = []
+        real_find_spec = importlib.util.find_spec
+
+        def fake_find_spec(name, *args, **kwargs):
+            captured.append(name)
+            if name == "omni.isaac.kit":
+                return None  # simulate not installed
+            return real_find_spec(name, *args, **kwargs)
+
+        monkeypatch.setattr(importlib.util, "find_spec", fake_find_spec)
+        available, reason = IsaacSimulation.is_available()
+
+        assert "omni.isaac.kit" in captured, (
+            "is_available() must call find_spec('omni.isaac.kit'); "
+            f"got find_spec calls: {captured!r}"
+        )
+        assert available is False
+        assert reason is not None
+        assert "omni.isaac.kit" in reason
+
 
 class TestIsaacSimulationContract:
     """Tests for IsaacSimulation method contracts (mocked)."""
