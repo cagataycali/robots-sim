@@ -292,6 +292,31 @@ class TestIsaacSimulationContract:
         assert sim.config.num_envs == 256
         assert sim.config.headless is True
 
+    def test_unknown_kwarg_raises_typeerror_no_config(self):
+        """Typo kwargs must raise TypeError, not silently default.
+
+        Regression pin for review-feedback PR #31: previously
+        ``IsaacSimulation(headles=False)`` (typo) was silently dropped
+        and the sim ran with default config. The validator now eagerly
+        rejects unknown kwargs to surface typos at construction time.
+        """
+        import pytest
+
+        from strands_robots_sim.isaac.simulation import IsaacSimulation
+
+        with pytest.raises(TypeError, match="headles"):
+            IsaacSimulation(headles=False)
+
+    def test_unknown_kwarg_raises_typeerror_with_config(self):
+        """Typo kwargs alongside an explicit IsaacConfig must also raise."""
+        import pytest
+
+        from strands_robots_sim.isaac.config import IsaacConfig
+        from strands_robots_sim.isaac.simulation import IsaacSimulation
+
+        with pytest.raises(TypeError, match="num_env"):
+            IsaacSimulation(IsaacConfig(num_envs=4), num_env=8)
+
 
 class TestProceduralRobots:
     """Tests for procedural robot definitions."""

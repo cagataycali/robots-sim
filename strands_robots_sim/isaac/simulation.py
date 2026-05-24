@@ -159,16 +159,26 @@ class IsaacSimulation(SimEngine):
     """
 
     def __init__(self, config: IsaacConfig | None = None, **kwargs: Any) -> None:
-        # Merge shortcut kwargs into config
+        # Merge shortcut kwargs into config. Unknown kwargs are rejected
+        # eagerly (rather than silently dropped) so a typo like
+        # ``IsaacSimulation(headles=False)`` surfaces at construction time
+        # instead of producing a default-config sim with no warning.
+        import dataclasses
+
         if config is None:
+            # IsaacConfig is a dataclass; passing an unknown kwarg raises
+            # TypeError("__init__() got an unexpected keyword argument ...")
+            # naturally. Both branches now have symmetric strictness.
             config = IsaacConfig(**kwargs)
         elif kwargs:
-            import dataclasses
-
             fields = {f.name for f in dataclasses.fields(config)}
-            overrides = {k: v for k, v in kwargs.items() if k in fields}
-            if overrides:
-                config = dataclasses.replace(config, **overrides)
+            unknown = sorted(set(kwargs) - fields)
+            if unknown:
+                raise TypeError(
+                    f"IsaacSimulation got unexpected kwargs: {unknown}. "
+                    f"Known IsaacConfig fields: {sorted(fields)}."
+                )
+            config = dataclasses.replace(config, **kwargs)
         self._config = config
 
         # Simulation state (all lazy-initialized)
