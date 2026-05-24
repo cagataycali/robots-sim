@@ -317,6 +317,26 @@ class TestIsaacSimulationContract:
         with pytest.raises(TypeError, match="num_env"):
             IsaacSimulation(IsaacConfig(num_envs=4), num_env=8)
 
+    def test_no_del_finalizer(self):
+        """IsaacSimulation must not define __del__.
+
+        Regression pin for review-feedback PR #31: a ``__del__`` that
+        calls cleanup() -> destroy() acquires ``self._lock`` during
+        interpreter shutdown, when ``threading`` / ``logger`` / ``omni``
+        may already be partially torn down. Drop the finalizer; rely on
+        explicit cleanup() or context-manager use. Bare-except in the
+        prior __del__ also masked the symptom but invisible exceptions
+        during finalization still print "Exception ignored in: ..." noise.
+        """
+        from strands_robots_sim.isaac.simulation import IsaacSimulation
+
+        # Defining __del__ on a subclass would re-introduce the hazard,
+        # so the assertion is on the class dict (not just on dir()).
+        assert "__del__" not in IsaacSimulation.__dict__, (
+            "IsaacSimulation must not define __del__; rely on explicit "
+            "cleanup() or context manager (see cleanup() docstring)."
+        )
+
 
 class TestProceduralRobots:
     """Tests for procedural robot definitions."""

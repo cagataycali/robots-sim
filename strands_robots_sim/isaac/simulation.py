@@ -1017,7 +1017,17 @@ class IsaacSimulation(SimEngine):
         return []
 
     def cleanup(self) -> None:
-        """Release all resources."""
+        """Release all resources.
+
+        Callers must invoke this explicitly (or use the class as a context
+        manager). There is intentionally no ``__del__`` finalizer: at
+        interpreter shutdown the ``threading`` / ``logger`` / ``omni``
+        modules can already be partially torn down, and acquiring
+        ``self._lock`` from a finalizer is unsafe. Relying on GC for
+        Isaac Sim cleanup also leaks the ``World``/USD stage on the
+        common case where the GC scheduler defers the finalizer past
+        the SimulationApp shutdown.
+        """
         if self._world_created:
             self.destroy()
 
@@ -1026,12 +1036,6 @@ class IsaacSimulation(SimEngine):
 
     def __exit__(self, *exc: object) -> None:
         self.cleanup()
-
-    def __del__(self) -> None:
-        try:
-            self.cleanup()
-        except Exception:
-            pass
 
     def __repr__(self) -> str:
         return (
