@@ -59,7 +59,13 @@ def main():
     result = sim.add_robot("so100")
     print(f"  → {result['content'][0]['text']}")
 
-    sim.add_object("cube", shape="box", position=[0.25, 0.0, 0.025], mass=0.05)
+    # NOTE: We intentionally do not call sim.add_object() here. NewtonSimulation.replicate()
+    # currently raises NotImplementedError when add_object() objects exist in the template
+    # (see strands_robots_sim/newton/simulation.py:1154-1158 and the regression test
+    # tests/test_replicate_drops.py::test_replicate_with_add_object_raises_not_implemented).
+    # Per-env object replication is not yet implemented; the fleet-throughput number is what
+    # this demo is selling. Once per-env scope lands, an add_object() call can be added
+    # back here -- pinned by tests/test_libero_newton_fleet_example.py.
 
     # --- Replicate to N environments ---
     print(f"\n[3/4] Replicating to {args.num_envs} environments...")
