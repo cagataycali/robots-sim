@@ -189,8 +189,7 @@ class TestIsaacSimulationAvailability:
         available, reason = IsaacSimulation.is_available()
 
         assert "omni.isaac.kit" in captured, (
-            "is_available() must call find_spec('omni.isaac.kit'); "
-            f"got find_spec calls: {captured!r}"
+            "is_available() must call find_spec('omni.isaac.kit'); " f"got find_spec calls: {captured!r}"
         )
         assert available is False
         assert reason is not None
@@ -421,3 +420,45 @@ class TestNoEmojisInOutput:
         for char in text:
             code = ord(char)
             assert code < 0x1F600 or code > 0x1F9FF, f"Emoji found in output: {char!r}"
+
+
+class TestExceptionClauseHygiene:
+    """Static-AST checks for narrow exception clauses in simulation.py.
+
+    Regression pin for review-feedback PR #31: bare ``except Exception``
+    swallows programming bugs (AttributeError typos, KeyError on dict
+    access, etc.) into logged error dicts that look identical to
+    recoverable failures.
+
+    Each behavioural except clause must enumerate the realistic failure
+    modes for the API it wraps, so a future drift in the wrapped API's
+    surface (or a typo in the wrapper) raises rather than silently
+    becoming a no-op.
+    """
+
+    def test_no_bare_except_exception_in_simulation_module(self):
+        """``except Exception`` is forbidden in simulation.py.
+
+        Use a tuple of named exception classes (RuntimeError, ValueError,
+        OSError, AttributeError, TypeError, ImportError, ...) instead.
+        """
+        import ast
+        from pathlib import Path
+
+        from strands_robots_sim.isaac import simulation
+
+        src = Path(simulation.__file__).read_text()
+        tree = ast.parse(src)
+
+        offending: list[tuple[int, str]] = []
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ExceptHandler):
+                if isinstance(node.type, ast.Name) and node.type.id == "Exception":
+                    offending.append((node.lineno, "except Exception"))
+                elif node.type is None:
+                    offending.append((node.lineno, "bare except"))
+
+        assert not offending, (
+            f"simulation.py must not use bare 'except Exception' or 'except:'; "
+            f"narrow to specific exception classes. Offending sites: {offending}"
+        )

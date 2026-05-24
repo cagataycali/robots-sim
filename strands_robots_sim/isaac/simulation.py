@@ -175,8 +175,7 @@ class IsaacSimulation(SimEngine):
             unknown = sorted(set(kwargs) - fields)
             if unknown:
                 raise TypeError(
-                    f"IsaacSimulation got unexpected kwargs: {unknown}. "
-                    f"Known IsaacConfig fields: {sorted(fields)}."
+                    f"IsaacSimulation got unexpected kwargs: {unknown}. " f"Known IsaacConfig fields: {sorted(fields)}."
                 )
             config = dataclasses.replace(config, **kwargs)
         self._config = config
@@ -351,8 +350,13 @@ class IsaacSimulation(SimEngine):
                         {"text": (f"Isaac Sim import failed: {e}. " "Ensure Isaac Sim is installed and accessible.")}
                     ],
                 }
-            except Exception as e:
-                # Cleanup on partial failure
+            except (RuntimeError, ValueError, OSError, AttributeError) as e:
+                # Cleanup on partial failure. Narrow to what World() /
+                # set_gravity / add_default_ground_plane / reset actually
+                # raise on Isaac: RuntimeError (Carb / sim init), ValueError
+                # (gravity vector shape), OSError (USD/Nucleus IO),
+                # AttributeError (omni surface drift). Programming bugs
+                # (NameError, ImportError-not-already-caught above) propagate.
                 self._world = None
                 logger.error("Failed to create Isaac world: %s", e)
                 return {
@@ -383,7 +387,11 @@ class IsaacSimulation(SimEngine):
                     self._world.stop()
                     self._world.clear_instance()
                     self._world = None
-            except Exception as e:
+            except (RuntimeError, OSError, AttributeError) as e:
+                # World.stop() / clear_instance() can raise on partial init
+                # or on a torn-down stage; AttributeError covers omni surface
+                # drift across versions. Logged at WARNING because we still
+                # mark the world destroyed below; programming bugs propagate.
                 logger.warning("World cleanup warning: %s", e)
 
             # Clear entity tracking
@@ -773,7 +781,11 @@ class IsaacSimulation(SimEngine):
                         for i, jname in enumerate(robot.joint_names):
                             if i < len(positions):
                                 obs[jname] = float(positions[i])
-                except Exception as e:
+                except (RuntimeError, ValueError, AttributeError, TypeError) as e:
+                    # Articulation handle may raise RuntimeError on a not-yet
+                    # -initialized world, AttributeError on torch-tensor surface
+                    # drift, ValueError/TypeError on np coercion. Programming
+                    # bugs propagate.
                     logger.debug("Failed to get joint positions: %s", e)
 
             return obs
@@ -826,7 +838,11 @@ class IsaacSimulation(SimEngine):
             if robot.articulation is not None:
                 try:
                     robot.articulation.set_joint_position_targets(action_array)
-                except Exception as e:
+                except (RuntimeError, ValueError, AttributeError) as e:
+                    # set_joint_position_targets raises RuntimeError on a
+                    # torn-down articulation, ValueError on shape mismatch,
+                    # AttributeError on omni surface drift. Programming bugs
+                    # (NameError, KeyError) propagate.
                     logger.debug("Failed to set joint targets: %s", e)
 
             # Step physics
