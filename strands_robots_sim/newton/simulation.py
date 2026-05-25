@@ -845,8 +845,13 @@ class NewtonSimulation(SimEngine):
                     render_result = self.render()
                     if render_result.get("status") == "success" and "image" in render_result:
                         obs["default"] = render_result["image"]
-                except Exception:
-                    pass  # Camera failure doesn't block joint observation
+                except Exception as e:
+                    # Camera failure does not block joint observation, but the
+                    # original exception must surface in logs (closes #35).
+                    logger.warning(
+                        "get_observation: camera render failed; returning joints only: %s",
+                        e,
+                    )
 
             return obs
 
@@ -1628,8 +1633,15 @@ class NewtonSimulation(SimEngine):
         # Newton's API: builder.add_articulation() starts a new kinematic tree
         try:
             builder.add_articulation()
-        except (AttributeError, TypeError):
-            pass  # Some Newton versions don't have this
+        except (AttributeError, TypeError) as e:
+            # Some Newton versions don't expose add_articulation as a builder
+            # method; the kinematic tree is still constructed via add_body /
+            # add_joint below. Surface the version mismatch in logs (closes #35).
+            logger.warning(
+                "_build_procedural_in_builder: builder.add_articulation() "
+                "not supported on this Newton version: %s",
+                e,
+            )
 
         for i, body in enumerate(robot.bodies):
             pos = [
@@ -1738,8 +1750,16 @@ class NewtonSimulation(SimEngine):
                     jtype = joint.get("type", "fixed")
                     if jtype != "fixed":
                         joint_names.append(joint.get("name", f"joint_{len(joint_names)}"))
-            except Exception:
-                pass
+            except Exception as e:
+                # ElementTree fallback is best-effort; the caller already has
+                # an empty joint_names list and downstream callers handle that.
+                # Log so a malformed URDF or missing file is observable
+                # (closes #35).
+                logger.warning(
+                    "_load_urdf_robot: ElementTree XML fallback failed for %s: %s",
+                    urdf_path,
+                    e,
+                )
 
         return joint_names
 
