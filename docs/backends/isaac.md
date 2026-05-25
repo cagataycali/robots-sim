@@ -13,6 +13,9 @@ GPU-native photorealistic simulation backend for `strands-robots-sim` using NVID
 - **Fleet replication**: parallel environments via `omni.isaac.cloner.Cloner`
 - **Isaac Lab integration**: GPU-accelerated RL environments
 
+
+> **Phase 1 status (skeleton).** This release ships the SimEngine-shaped surface and lazy-import scaffolding only. Several methods on `IsaacSimulation` (`add_robot` on the procedural branch, `_load_usd_robot`, `_load_urdf_robot`, `add_object`, `add_camera`, `replicate`) currently return `status: "success"` without instantiating the underlying USD prim or articulation handle. Following the documented Quick Start on a real Isaac Sim install will therefore observe `get_observation()` returning `{}` and `render()` returning blank frames -- no exception is raised. The data-plane wiring (USD stage management, articulation construction, sensor / replicator integration) lands in Phase 2 and later. Treat the Phase-1 surface as an integration contract, not as a working physics path.
+
 ## Installation
 
 Isaac Sim is **not installable from PyPI**. It is an NVIDIA Omniverse Kit application that must be installed separately.

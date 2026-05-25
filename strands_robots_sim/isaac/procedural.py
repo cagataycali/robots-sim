@@ -6,7 +6,7 @@ to construct robots purely from code -- no binary asset files required.
 Supported procedural robots:
     - so100: SO-100 6-DOF tabletop arm
     - panda: Franka Emika Panda 7-DOF
-    - unitree_g1: Unitree G1 humanoid (29-DOF)
+    - unitree_g1: Unitree G1 humanoid (21-DOF, simplified)
 """
 
 from __future__ import annotations
@@ -137,7 +137,7 @@ def _build_panda() -> ProceduralRobot:
 
 
 def _build_unitree_g1() -> ProceduralRobot:
-    """Build Unitree G1 humanoid (simplified 29-DOF) procedurally."""
+    """Build Unitree G1 humanoid (simplified 21-DOF) procedurally."""
     bodies = [
         BodyDef(name="pelvis", position=(0.0, 0.0, 0.85), mass=10.0, shape="box", shape_size=(0.15, 0.1, 0.15)),
         BodyDef(name="torso", position=(0.0, 0.0, 1.1), mass=8.0, shape="box", shape_size=(0.12, 0.08, 0.3)),
@@ -162,7 +162,13 @@ def _build_unitree_g1() -> ProceduralRobot:
         BodyDef(name="r_forearm", position=(0.55, 0.0, 1.2), mass=1.0, shape="capsule", shape_size=(0.025, 0.1)),
     ]
 
-    # Simplified joint set (29 DOF total for G1)
+    # Simplified joint set (21 DOF total: 1 torso + 6 left leg + 6 right leg + 4 left arm + 4 right arm).
+    # NOTE: this kinematic graph contains duplicate (parent, child) edges on each leg/arm
+    # (e.g. l_hip_roll and l_hip_pitch both map bodies 3 -> 4). A real USD/MuJoCo articulation
+    # builder requires a tree where each non-root link has exactly one inbound joint, so this
+    # topology will need intermediate massless link bodies before Phase 2 wires up the actual
+    # USD prim chain. Tracked as Phase-2 work; the Phase-1 skeleton does not instantiate the
+    # articulation, so the duplicate-edge defect is dormant on this branch.
     joints = [
         # Torso
         JointDef(name="torso_yaw", parent_body=0, child_body=1, axis=(0, 0, 1), limit_lower=-1.0, limit_upper=1.0),
