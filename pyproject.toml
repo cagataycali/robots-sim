@@ -90,15 +90,21 @@ dependencies = [
 ]
 
 [tool.hatch.envs.default.scripts]
+# Lint/format scope extends to `examples/` so the runnable example files
+# (which copy-paste into PR docstrings + the README matrix) catch the same
+# drift the package source does. Keeps each new R8/R12/R23 backend example
+# honest. The `test` script targets isaac/tests/ now that R7 lands the
+# first backend with real pytest coverage; superseded the prior import-
+# smoke placeholder.
 test = "pytest strands_robots_sim/isaac/tests/ -v --ignore=strands_robots_sim/isaac/tests/test_gpu_integ.py"
 lint = [
-    "black --check strands_robots_sim",
-    "isort --check-only strands_robots_sim",
-    "flake8 strands_robots_sim",
+    "black --check strands_robots_sim examples",
+    "isort --check-only strands_robots_sim examples",
+    "flake8 strands_robots_sim examples",
 ]
 format = [
-    "black strands_robots_sim",
-    "isort strands_robots_sim",
+    "black strands_robots_sim examples",
+    "isort strands_robots_sim examples",
 ]
 
 [tool.black]
