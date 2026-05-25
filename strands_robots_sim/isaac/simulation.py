@@ -749,10 +749,32 @@ class IsaacSimulation(SimEngine):
         Returns
         -------
         dict
-            Observation with joint positions keyed by joint name.
+            Observation with joint positions keyed by joint name. An empty dict
+            indicates one of four diagnostically-distinct conditions, each of
+            which is logged before return so silent failures are visible in
+            operational logs:
+
+            * ``world not yet created`` -- DEBUG (expected pre-init state).
+            * ``ambiguous robot_name=None with multiple robots`` -- WARNING.
+            * ``unknown robot_name`` (typo / not-yet-added) -- WARNING.
+            * ``robot present but Articulation handle not yet initialised``
+              (Phase 1 procedural / load stub) -- DEBUG via the inner except;
+              the dict returns empty because no joint positions are reachable.
+
+            The return shape is preserved as a plain dict (rather than the
+            ``{"status": ..., "content": [...]}`` shape used by mutating
+            methods on this class) because callers consume joint positions
+            keyed by joint name; the four silent-``{}`` modes are distinguished
+            in logs rather than in the return value.
         """
         with self._lock:
             if not self._world_created:
+                # Expected pre-init state; many callers probe before
+                # create_world() to feature-detect, so DEBUG-only.
+                logger.debug(
+                    "get_observation(robot_name=%r): world not yet created",
+                    robot_name,
+                )
                 return {}
 
             # Resolve robot
@@ -760,9 +782,21 @@ class IsaacSimulation(SimEngine):
                 if len(self._robots) == 1:
                     robot_name = next(iter(self._robots))
                 else:
+                    logger.warning(
+                        "get_observation(robot_name=None): ambiguous -- "
+                        "%d robots present (%s); pass robot_name explicitly. "
+                        "Returning empty observation.",
+                        len(self._robots),
+                        sorted(self._robots),
+                    )
                     return {}
 
             if robot_name not in self._robots:
+                logger.warning(
+                    "get_observation(robot_name=%r): unknown robot. Known: %s. " "Returning empty observation.",
+                    robot_name,
+                    sorted(self._robots),
+                )
                 return {}
 
             robot = self._robots[robot_name]
