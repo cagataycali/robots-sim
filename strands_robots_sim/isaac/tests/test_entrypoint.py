@@ -169,8 +169,7 @@ class TestNewtonRemoved:
         """No ``[newton]`` optional-dependencies extra remains."""
         content = _PYPROJECT.read_text()
         assert "\nnewton = [" not in content and "\nnewton=[" not in content, (
-            "pyproject.toml still declares a `newton = [...]` extra; the "
-            "Isaac-only re-scope (#89) removes it."
+            "pyproject.toml still declares a `newton = [...]` extra; the " "Isaac-only re-scope (#89) removes it."
         )
         # The `all` extra must not pull in the dropped [newton] extra.
         assert "strands-robots-sim[newton]" not in content, (
@@ -182,12 +181,9 @@ class TestNewtonRemoved:
         """``warp-lang``/``newton-physics`` deps are gone from packaging."""
         content = _PYPROJECT.read_text()
         assert "warp-lang" not in content, (
-            "pyproject.toml still pins warp-lang (the Newton backend dep); "
-            "removed by the Isaac-only re-scope (#89)."
+            "pyproject.toml still pins warp-lang (the Newton backend dep); " "removed by the Isaac-only re-scope (#89)."
         )
-        assert "newton-physics" not in content, (
-            "pyproject.toml still pins newton-physics; removed by #89."
-        )
+        assert "newton-physics" not in content, "pyproject.toml still pins newton-physics; removed by #89."
 
     def test_installed_entry_points_exclude_newton_and_warp(self):
         """If pip-installed, no newton/warp backend entry points resolve."""
