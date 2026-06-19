@@ -161,7 +161,7 @@ dependencies = [
 [tool.hatch.envs.default.scripts]
 # `hatch run test` runs the Isaac entry-point + lazy-import test slice
 # and the simulation-module tests under the same directory.
-test = "pytest strands_robots_sim/isaac/tests/ -v"
+test = "pytest strands_robots_sim/isaac/tests/ tests/ -v"
 # Lint extends to `examples/` so the runnable example files (which copy-
 # paste into PR docstrings + the README matrix) catch the same drift the
 # package source does. Keeps each new R8/R12/R23 backend example honest.

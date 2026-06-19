@@ -163,7 +163,9 @@ def main() -> None:
     p.add_argument(
         "--image",
         default="gr00t:latest",
-        help="(--auto-server only) Docker image tag of the GR00T container.",
+        help="(--auto-server only) GR00T container image tag; sets "
+        "STRANDS_GR00T_IMAGE for strands-robots. Must match the "
+        "STRANDS_GR00T_IMAGE_ALLOW allowlist (default gr00t:* is built in).",
     )
     p.add_argument(
         "--container",
@@ -198,10 +200,15 @@ def main() -> None:
                 "--policy groot needs an HF token (Cosmos-Reason2-2B is gated). "
                 "Run `huggingface-cli login` first, then retry."
             )
+        # strands-robots>=0.4.0 removed the gr00t_inference(image_name=...) kwarg:
+        # the GR00T image is operator-configured via STRANDS_GR00T_IMAGE (validated
+        # against STRANDS_GR00T_IMAGE_ALLOW) and resolved internally. Route the
+        # --image flag through that env var. The default gr00t:latest matches the
+        # built-in gr00t:* allowlist; other tags need STRANDS_GR00T_IMAGE_ALLOW.
+        os.environ["STRANDS_GR00T_IMAGE"] = args.image
         result = gr00t_inference(
             action="lifecycle",
             lifecycle="full",
-            image_name=args.image,
             hf_repo="nvidia/GR00T-N1.7-LIBERO",
             hf_subfolder=suite,
             hf_local_dir=args.checkpoint_dir,
