@@ -3432,4 +3432,3 @@ class TestIsaacSimulationDestroyStageClear:
         assert result["status"] == "success"
         assert sim._world is None
         assert sim._world_created is False
-
